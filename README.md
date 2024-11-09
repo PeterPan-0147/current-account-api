@@ -51,3 +51,10 @@ The application will start on `http://localhost:8080`
 Once the application is running, you can access the Swagger UI documentation at:
 ```
 http://localhost:8080/swagger-ui/index.html
+```
+## Test Data
+
+The application is pre-populated with a test customer that you can use for testing:
+1. Customer ID: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+2. Name: John
+3. Surname: Doe

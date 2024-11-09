@@ -1,6 +1,8 @@
 package com.banking.current_account_api.service;
 
 
+import com.banking.current_account_api.dto.AccountDetailsResponse;
+import com.banking.current_account_api.dto.TransactionRequest;
 import com.banking.current_account_api.exception.AppException;
 import com.banking.current_account_api.model.Account;
 import com.banking.current_account_api.model.Customer;
@@ -10,15 +12,16 @@ import com.banking.current_account_api.repository.AccountRepository;
 import com.banking.current_account_api.repository.CustomerRepository;
 import com.banking.current_account_api.service.impl.AccountServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -33,21 +36,40 @@ class AccountServiceTest {
     @Mock
     private TransactionService transactionService;
 
-    private AccountService accountService;
+    @InjectMocks
+    private AccountServiceImpl accountService;
+
+    private UUID customerId;
+    private UUID accountId;
+    private Account testAccount;
+    private Transaction testTransaction;
 
     @BeforeEach
     void setUp() {
-        accountService = new AccountServiceImpl(accountRepository, transactionService, customerRepository);
+        customerId = UUID.randomUUID();
+        accountId = UUID.randomUUID();
+
+        testAccount = Account.builder()
+                .id(accountId)
+                .customerId(customerId)
+                .balance(BigDecimal.valueOf(1000))
+                .build();
+
+        testTransaction = Transaction.builder()
+                .transactionType(TransactionType.CREDIT)
+                .id(UUID.randomUUID())
+                .amount(BigDecimal.valueOf(100))
+                .build();
     }
 
     @Test
     void createAccount_WithValidCustomerAndInitialCredit_ShouldCreateAccountAndTransaction() {
         // Given
-        UUID customerId = UUID.randomUUID();
+        UUID customerID = UUID.randomUUID();
         BigDecimal initialCredit = new BigDecimal("100.00");
 
         Customer customer = Customer.builder()
-                .id(customerId)
+                .id(customerID)
                 .name("John")
                 .surname("Doe")
                 .accounts(new ArrayList<>())
@@ -55,7 +77,7 @@ class AccountServiceTest {
 
         Account account = Account.builder()
                 .id(UUID.randomUUID())
-                .customerId(customerId)
+                .customerId(customerID)
                 .balance(BigDecimal.ZERO)
                 .transactions(new ArrayList<>())
                 .build();
@@ -67,13 +89,13 @@ class AccountServiceTest {
                 .transactionType(TransactionType.CREDIT)
                 .build();
 
-        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(customerRepository.findById(customerID)).thenReturn(Optional.of(customer));
         when(accountRepository.save(any(Account.class))).thenReturn(account);
         when(transactionService.createTransaction(any(), any(), any(), any())).thenReturn(transaction);
         when(customerRepository.save(any(Customer.class))).thenReturn(customer);
 
         // When
-        Account result = accountService.createAccount(customerId, initialCredit);
+        Account result = accountService.createAccount(customerID, initialCredit);
 
         // Then
         assertNotNull(result);
@@ -85,23 +107,23 @@ class AccountServiceTest {
     @Test
     void createAccount_WithNonExistentCustomer_ShouldThrowException() {
         // Given
-        UUID customerId = UUID.randomUUID();
-        when(customerRepository.findById(customerId)).thenReturn(Optional.empty());
+        UUID customerID = UUID.randomUUID();
+        when(customerRepository.findById(customerID)).thenReturn(Optional.empty());
 
         // When/Then
         assertThrows(AppException.class,
-                () -> accountService.createAccount(customerId, BigDecimal.ZERO));
+                () -> accountService.createAccount(customerID, BigDecimal.ZERO));
     }
 
     @Test
     void createAccount_WithNegativeInitialCredit_ShouldThrowException() {
         // Given
-        UUID customerId = UUID.randomUUID();
+        UUID customerID = UUID.randomUUID();
         BigDecimal initialCredit = new BigDecimal("-1.00");
 
         // When/Then
         assertThrows(IllegalArgumentException.class,
-                () -> accountService.createAccount(customerId, initialCredit));
+                () -> accountService.createAccount(customerID, initialCredit));
     }
 
 
@@ -110,5 +132,178 @@ class AccountServiceTest {
         // When/Then
         assertThrows(IllegalArgumentException.class,
                 () -> accountService.createAccount(null, BigDecimal.ZERO));
+    }
+
+    @Nested
+    @DisplayName("getAllAccountsByCustomer Tests")
+    class GetAllAccountsByCustomerTests {
+
+        @Test
+        @DisplayName("Should return all accounts for a customer")
+        void shouldReturnAllAccountsForCustomer() {
+            // Arrange
+            Account account1 = Account.builder()
+                    .id(UUID.randomUUID())
+                    .balance(BigDecimal.valueOf(1000))
+                    .build();
+
+            Account account2 = Account.builder()
+                    .id(UUID.randomUUID())
+                    .balance(BigDecimal.valueOf(2000))
+                    .build();
+
+            List<Account> accounts = Arrays.asList(account1, account2);
+            when(accountRepository.findByCustomerId(customerId)).thenReturn(accounts);
+
+            // Act
+            List<AccountDetailsResponse> result = accountService.getAllAccountsByCustomer(customerId);
+
+            // Assert
+            assertNotNull(result);
+            assertEquals(2, result.size());
+            assertEquals(account1.getId(), result.get(0).getAccountId());
+            assertEquals(account1.getBalance(), result.get(0).getBalance());
+            assertEquals(account2.getId(), result.get(1).getAccountId());
+            assertEquals(account2.getBalance(), result.get(1).getBalance());
+        }
+
+        @Test
+        @DisplayName("Should return empty list when customer has no accounts")
+        void shouldReturnEmptyListWhenNoAccounts() {
+            // Arrange
+            when(accountRepository.findByCustomerId(customerId)).thenReturn(List.of());
+
+            // Act
+            List<AccountDetailsResponse> result = accountService.getAllAccountsByCustomer(customerId);
+
+            // Assert
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
+        }
+    }
+
+    @Nested
+    @DisplayName("getTransactionsByAccount Tests")
+    class GetTransactionsByAccountTests {
+
+        @Test
+        @DisplayName("Should return transactions for valid account")
+        void shouldReturnTransactionsForValidAccount() {
+            // Arrange
+            List<Transaction> transactions = Arrays.asList(
+                    testTransaction,
+                    new Transaction()
+            );
+            testAccount.setTransactions(transactions);
+            when(accountRepository.findById(accountId)).thenReturn(Optional.of(testAccount));
+
+            // Act
+            List<Transaction> result = accountService.getTransactionsByAccount(accountId);
+
+            // Assert
+            assertNotNull(result);
+            assertEquals(2, result.size());
+            assertEquals(transactions, result);
+        }
+
+        @Test
+        @DisplayName("Should throw exception when account not found")
+        void shouldThrowExceptionWhenAccountNotFound() {
+            // Arrange
+            when(accountRepository.findById(accountId)).thenReturn(Optional.empty());
+
+            // Act & Assert
+            AppException exception = assertThrows(AppException.class,
+                    () -> accountService.getTransactionsByAccount(accountId));
+            assertEquals("404", exception.getCode());
+            assertEquals("Account not found", exception.getMessage());
+        }
+    }
+
+    @Nested
+    @DisplayName("performTransaction Tests")
+    class PerformTransactionTests {
+
+        @Test
+        @DisplayName("Should perform credit transaction successfully")
+        void shouldPerformCreditTransactionSuccessfully() {
+            // Arrange
+            TransactionRequest request = new TransactionRequest();
+            request.setAmount(BigDecimal.valueOf(100));
+            request.setType(TransactionType.CREDIT);
+
+            when(accountRepository.findById(accountId)).thenReturn(Optional.of(testAccount));
+            when(transactionService.createTransaction(eq(accountId), any(), any(), any()))
+                    .thenReturn(testTransaction);
+            when(accountRepository.save(any())).thenReturn(testAccount);
+
+            // Act
+            AccountDetailsResponse result = accountService.performTransaction(accountId, request);
+
+            // Assert
+            assertNotNull(result);
+            assertEquals(accountId, result.getAccountId());
+            assertEquals(BigDecimal.valueOf(1100), result.getBalance());
+            verify(accountRepository).save(any());
+        }
+
+        @Test
+        @DisplayName("Should perform debit transaction successfully")
+        void shouldPerformDebitTransactionSuccessfully() {
+            // Arrange
+            TransactionRequest request = new TransactionRequest();
+            request.setAmount(BigDecimal.valueOf(100));
+            request.setType(TransactionType.DEBIT);
+
+            when(accountRepository.findById(accountId)).thenReturn(Optional.of(testAccount));
+            when(transactionService.createTransaction(eq(accountId), any(), any(), any()))
+                    .thenReturn(testTransaction);
+            when(accountRepository.save(any())).thenReturn(testAccount);
+
+            // Act
+            AccountDetailsResponse result = accountService.performTransaction(accountId, request);
+
+            // Assert
+            assertNotNull(result);
+            assertEquals(accountId, result.getAccountId());
+            assertEquals(BigDecimal.valueOf(900), result.getBalance());
+            verify(accountRepository).save(any());
+        }
+
+        @Test
+        @DisplayName("Should throw exception when insufficient funds for debit")
+        void shouldThrowExceptionWhenInsufficientFunds() {
+            // Arrange
+            TransactionRequest request = new TransactionRequest();
+            request.setAmount(BigDecimal.valueOf(2000));
+            request.setType(TransactionType.DEBIT);
+
+            when(accountRepository.findById(accountId)).thenReturn(Optional.of(testAccount));
+
+            // Act & Assert
+            AppException exception = assertThrows(AppException.class,
+                    () -> accountService.performTransaction(accountId, request));
+            assertEquals("400", exception.getCode());
+            assertEquals("Insufficient funds", exception.getMessage());
+            verify(accountRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Should throw exception when account not found")
+        void shouldThrowExceptionWhenAccountNotFoundForTransaction() {
+            // Arrange
+            TransactionRequest request = new TransactionRequest();
+            request.setAmount(BigDecimal.valueOf(100));
+            request.setType(TransactionType.CREDIT);
+
+            when(accountRepository.findById(accountId)).thenReturn(Optional.empty());
+
+            // Act & Assert
+            AppException exception = assertThrows(AppException.class,
+                    () -> accountService.performTransaction(accountId, request));
+            assertEquals("404", exception.getCode());
+            assertEquals("Account not found", exception.getMessage());
+            verify(accountRepository, never()).save(any());
+        }
     }
 }
