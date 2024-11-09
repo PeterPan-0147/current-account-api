@@ -63,7 +63,7 @@ class CustomerServiceTest {
         assertNotNull(response);
         assertEquals("John", response.getName());
         assertEquals("Doe", response.getSurname());
-        assertEquals(new BigDecimal("100.00"), response.getBalance());
-        assertNotNull(response.getTransactions());
+        assertEquals(new BigDecimal("100.00"), response.getTotalBalance());
+        assertNotNull(response.getAccounts().get(0).getTransactions());
     }
 }

@@ -8,7 +8,7 @@ import lombok.EqualsAndHashCode;
 public class AppException extends RuntimeException {
     private final String message;
     private final String code;
-    public AppException(String message, String code) {
+    public AppException(String code, String message ) {
         super(message);
         this.message = message;
         this.code = code;

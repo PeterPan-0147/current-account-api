@@ -1,10 +1,10 @@
 package com.banking.current_account_api.dto;
 
-import com.banking.current_account_api.model.Transaction;
 import lombok.Data;
 import lombok.Builder;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 
 
 @Data
@@ -12,6 +12,21 @@ import java.util.List;
 public class CustomerDetailsResponse {
     private String name;
     private String surname;
-    private BigDecimal balance;
-    private List<Transaction> transactions;
+    private BigDecimal totalBalance;
+    private List<AccountDetails> accounts;
+
+    @Data
+    @Builder
+    public static class AccountDetails {
+        private UUID accountId;
+        private BigDecimal balance;
+        private List<TransactionDetails> transactions;
+    }
+
+    @Data
+    @Builder
+    public static class TransactionDetails {
+        private BigDecimal amount;
+        private String timestamp;
+    }
 }

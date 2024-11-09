@@ -41,7 +41,7 @@ public class AccountServiceImpl implements AccountService {
 
         // Find customer
         Customer customer = customerRepository.findById(customerId)
-                .orElseThrow(() -> new AppException("","Customer with ID " + customerId + " not found"));
+                .orElseThrow(() -> new AppException("404","Customer with ID " + customerId + " not found"));
 
         // Create new account
         Account account = Account.builder()
